@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
@@ -30,7 +31,12 @@ type Server struct {
 }
 
 func main() {
-	dsn := "postgres://delivery_user:root@localhost:5433/delivery?sslmode=disable"
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	dsn := os.Getenv("DATABASE_URL")
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
