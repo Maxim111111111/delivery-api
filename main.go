@@ -13,23 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 )
 
-var mu sync.RWMutex
-
 var ErrOrderNotFound = errors.New("order not found")
-
-type Product struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Brand    string `json:"brand"`
-	Color    string `json:"color"`
-	Price    int    `json:"price"`
-	Quantity int    `json:"quantity"`
-}
 
 type Order struct {
 	ID      int    `json:"id"`
@@ -39,14 +27,6 @@ type Order struct {
 
 type Server struct {
 	db *sql.DB
-}
-
-var products = map[int]Product{
-	1: {1, "Iphone 15 Pro", "Apple", "White", 87990, 78},
-	2: {2, "Samsung A54", "Samsung", "Gray", 13789, 8},
-	3: {3, "Samsung A05", "Samsung", "White Gold", 3770, 3},
-	4: {4, "Vivo S30 Pro Mini", "Vivo", "Pink", 35390, 32},
-	5: {5, "Vivo X300", "Vivo", "Black", 63890, 58},
 }
 
 func main() {
@@ -71,16 +51,8 @@ func main() {
 	r.Use(LoggingMiddleware)
 	r.Use(RecoverMiddleware)
 
-	r.Get("/products", GetProducts)
-	r.Get("/products/{id}", GetProductByID)
-	r.Get("/slow", SlowHandler)
-
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware)
-		r.Post("/products", CreateProduct)
-		r.Put("/products/{id}", UpdateProduct)
-		r.Delete("/products/{id}", DeleteProduct)
-		r.Get("/boom", BoomHandler)
 		r.Get("/orders", srv.GetOrders)
 		r.Get("/orders/{id}", srv.GetOrderByID)
 	})
@@ -141,20 +113,6 @@ func RecoverMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func BoomHandler(w http.ResponseWriter, r *http.Request) {
-	panic("бум")
-}
-
-func SlowHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("Медленный хендлер в работе...")
-	time.Sleep(time.Second * 15)
-	_, err := w.Write([]byte("готово"))
-	if err != nil {
-		log.Printf("Ошибка записи ответа: %v", err)
-	}
-	log.Println("Медленный хендлер закончил работу.")
-}
-
 func (s *Server) GetOrders(w http.ResponseWriter, r *http.Request) {
 	orders, err := getOrders(s.db)
 	if err != nil {
@@ -167,22 +125,6 @@ func (s *Server) GetOrders(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(orders)
 	if err != nil {
 		log.Printf("Error encoding orders: %v", err)
-	}
-}
-
-func GetProducts(w http.ResponseWriter, r *http.Request) {
-	productsSlice := make([]Product, 0)
-
-	mu.RLock()
-	for _, product := range products {
-		productsSlice = append(productsSlice, product)
-	}
-	mu.RUnlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(productsSlice)
-	if err != nil {
-		log.Printf("Error encoding product: %v", err)
 	}
 }
 
@@ -210,104 +152,6 @@ func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error encoding orders: %v", err)
 	}
-}
-
-func GetProductByID(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	intID, err := strconv.Atoi(id)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		return
-	}
-
-	mu.RLock()
-	product, ok := products[intID]
-	mu.RUnlock()
-	if !ok {
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(product)
-	if err != nil {
-		log.Printf("Error encoding product: %v", err)
-	}
-}
-
-func CreateProduct(w http.ResponseWriter, r *http.Request) {
-	var product Product
-	err := json.NewDecoder(r.Body).Decode(&product)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		return
-	}
-
-	mu.Lock()
-	products[product.ID] = product
-	mu.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	err = json.NewEncoder(w).Encode(product)
-	if err != nil {
-		log.Printf("Error encoding product: %v", err)
-	}
-}
-
-func UpdateProduct(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	intID, err := strconv.Atoi(id)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		return
-	}
-
-	var product Product
-	err = json.NewDecoder(r.Body).Decode(&product)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		return
-	}
-
-	product.ID = intID
-	mu.Lock()
-	_, ok := products[intID]
-	if !ok {
-		mu.Unlock()
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		return
-	}
-	products[intID] = product
-	mu.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(product)
-	if err != nil {
-		log.Printf("Error encoding product: %v", err)
-	}
-}
-
-func DeleteProduct(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	intID, err := strconv.Atoi(id)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		return
-	}
-
-	mu.Lock()
-	_, ok := products[intID]
-	if !ok {
-		mu.Unlock()
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		return
-	}
-	delete(products, intID)
-	mu.Unlock()
-
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func getOrders(db *sql.DB) ([]Order, error) {
