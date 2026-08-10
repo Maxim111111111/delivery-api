@@ -61,6 +61,9 @@ func main() {
 		r.Use(AuthMiddleware)
 		r.Get("/orders", srv.GetOrders)
 		r.Get("/orders/{id}", srv.GetOrderByID)
+		r.Delete("/orders/{id}", srv.DeleteOrder)
+		r.Post("/orders", srv.CreateOrder)
+		r.Put("/orders/{id}", srv.UpdateOrder)
 	})
 
 	server := &http.Server{
@@ -160,6 +163,83 @@ func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	var o Order
+	err := json.NewDecoder(r.Body).Decode(&o)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	order, err := createOrder(s.db, o)
+	if err != nil {
+		log.Printf("CreateOrder handler: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	err = json.NewEncoder(w).Encode(order)
+	if err != nil {
+		log.Printf("Error encoding orders: %v", err)
+	}
+}
+
+func (s *Server) UpdateOrder(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	intID, err := strconv.Atoi(id)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	var o Order
+	err = json.NewDecoder(r.Body).Decode(&o)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	order, err := updateOrder(s.db, intID, o)
+	if err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+		log.Printf("UpdateOrder handler: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(order)
+	if err != nil {
+		log.Printf("Error encoding orders: %v", err)
+	}
+}
+
+func (s *Server) DeleteOrder(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	intID, err := strconv.Atoi(id)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	err = deleteOrder(s.db, intID)
+	if err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+		log.Printf("DeleteOrder handler: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func getOrders(db *sql.DB) ([]Order, error) {
 	rows, err := db.Query(`SELECT id, address, price FROM orders`)
 	if err != nil {
@@ -193,4 +273,40 @@ func getOrderByID(db *sql.DB, id int) (Order, error) {
 		return Order{}, fmt.Errorf("getOrderByID: %w", err)
 	}
 	return o, nil
+}
+
+func createOrder(db *sql.DB, o Order) (Order, error) {
+	row := db.QueryRow(`INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id`, o.Address, o.Price)
+	err := row.Scan(&o.ID)
+	if err != nil {
+		return Order{}, fmt.Errorf("createOrder: %w", err)
+	}
+	return o, nil
+}
+
+func updateOrder(db *sql.DB, id int, o Order) (Order, error) {
+	row := db.QueryRow(`UPDATE orders SET address = $1, price = $2 WHERE id = $3 RETURNING id, address, price`, o.Address, o.Price, id)
+	err := row.Scan(&o.ID, &o.Address, &o.Price)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Order{}, ErrOrderNotFound
+		}
+		return Order{}, fmt.Errorf("updateOrder: %w", err)
+	}
+	return o, nil
+}
+
+func deleteOrder(db *sql.DB, id int) error {
+	res, err := db.Exec(`DELETE FROM orders WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("deleteOrder exec: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("deleteOrder rowsAffected: %w", err)
+	}
+	if rows == 0 {
+		return ErrOrderNotFound
+	}
+	return nil
 }
