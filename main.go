@@ -123,7 +123,9 @@ func RecoverMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *Server) GetOrders(w http.ResponseWriter, r *http.Request) {
-	orders, err := getOrders(s.db)
+	ctx := r.Context()
+
+	orders, err := getOrders(ctx, s.db)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -138,6 +140,8 @@ func (s *Server) GetOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
 	if err != nil {
@@ -145,7 +149,7 @@ func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := getOrderByID(s.db, intID)
+	order, err := getOrderByID(ctx, s.db, intID)
 	if err != nil {
 		if errors.Is(err, ErrOrderNotFound) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -164,13 +168,15 @@ func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	var o Order
 	err := json.NewDecoder(r.Body).Decode(&o)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	order, err := createOrder(s.db, o)
+	order, err := createOrder(ctx, s.db, o)
 	if err != nil {
 		log.Printf("CreateOrder handler: %v", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -186,6 +192,7 @@ func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UpdateOrder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
 	if err != nil {
@@ -200,7 +207,7 @@ func (s *Server) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := updateOrder(s.db, intID, o)
+	order, err := updateOrder(ctx, s.db, intID, o)
 	if err != nil {
 		if errors.Is(err, ErrOrderNotFound) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -219,6 +226,8 @@ func (s *Server) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteOrder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
 	if err != nil {
@@ -226,7 +235,7 @@ func (s *Server) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = deleteOrder(s.db, intID)
+	err = deleteOrder(ctx, s.db, intID)
 	if err != nil {
 		if errors.Is(err, ErrOrderNotFound) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -240,8 +249,8 @@ func (s *Server) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func getOrders(db *sql.DB) ([]Order, error) {
-	rows, err := db.Query(`SELECT id, address, price FROM orders`)
+func getOrders(ctx context.Context, db *sql.DB) ([]Order, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, address, price FROM orders`)
 	if err != nil {
 		return nil, fmt.Errorf("getOrders query: %w", err)
 	}
@@ -262,9 +271,9 @@ func getOrders(db *sql.DB) ([]Order, error) {
 	return orders, nil
 }
 
-func getOrderByID(db *sql.DB, id int) (Order, error) {
+func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 	var o Order
-	row := db.QueryRow(`SELECT id, address, price FROM orders WHERE id = $1`, id)
+	row := db.QueryRowContext(ctx, `SELECT id, address, price FROM orders WHERE id = $1`, id)
 	err := row.Scan(&o.ID, &o.Address, &o.Price)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -275,8 +284,8 @@ func getOrderByID(db *sql.DB, id int) (Order, error) {
 	return o, nil
 }
 
-func createOrder(db *sql.DB, o Order) (Order, error) {
-	row := db.QueryRow(`INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id`, o.Address, o.Price)
+func createOrder(ctx context.Context, db *sql.DB, o Order) (Order, error) {
+	row := db.QueryRowContext(ctx, `INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id`, o.Address, o.Price)
 	err := row.Scan(&o.ID)
 	if err != nil {
 		return Order{}, fmt.Errorf("createOrder: %w", err)
@@ -284,8 +293,8 @@ func createOrder(db *sql.DB, o Order) (Order, error) {
 	return o, nil
 }
 
-func updateOrder(db *sql.DB, id int, o Order) (Order, error) {
-	row := db.QueryRow(`UPDATE orders SET address = $1, price = $2 WHERE id = $3 RETURNING id, address, price`, o.Address, o.Price, id)
+func updateOrder(ctx context.Context, db *sql.DB, id int, o Order) (Order, error) {
+	row := db.QueryRowContext(ctx, `UPDATE orders SET address = $1, price = $2 WHERE id = $3 RETURNING id, address, price`, o.Address, o.Price, id)
 	err := row.Scan(&o.ID, &o.Address, &o.Price)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -296,8 +305,8 @@ func updateOrder(db *sql.DB, id int, o Order) (Order, error) {
 	return o, nil
 }
 
-func deleteOrder(db *sql.DB, id int) error {
-	res, err := db.Exec(`DELETE FROM orders WHERE id = $1`, id)
+func deleteOrder(ctx context.Context, db *sql.DB, id int) error {
+	res, err := db.ExecContext(ctx, `DELETE FROM orders WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("deleteOrder exec: %w", err)
 	}
