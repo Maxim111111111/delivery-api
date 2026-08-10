@@ -21,9 +21,11 @@ import (
 var ErrOrderNotFound = errors.New("order not found")
 
 type Order struct {
-	ID      int    `json:"id"`
-	Address string `json:"address"`
-	Price   int64  `json:"price"`
+	ID        int       `json:"id"`
+	Address   string    `json:"address"`
+	Price     int64     `json:"price"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Server struct {
@@ -250,7 +252,7 @@ func (s *Server) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func getOrders(ctx context.Context, db *sql.DB) ([]Order, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id, address, price FROM orders`)
+	rows, err := db.QueryContext(ctx, `SELECT id, address, price, status, created_at FROM orders`)
 	if err != nil {
 		return nil, fmt.Errorf("getOrders query: %w", err)
 	}
@@ -259,7 +261,7 @@ func getOrders(ctx context.Context, db *sql.DB) ([]Order, error) {
 	orders := make([]Order, 0)
 	for rows.Next() {
 		var o Order
-		err = rows.Scan(&o.ID, &o.Address, &o.Price)
+		err = rows.Scan(&o.ID, &o.Address, &o.Price, &o.Status, &o.CreatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("getOrders scan: %w", err)
 		}
@@ -273,8 +275,8 @@ func getOrders(ctx context.Context, db *sql.DB) ([]Order, error) {
 
 func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 	var o Order
-	row := db.QueryRowContext(ctx, `SELECT id, address, price FROM orders WHERE id = $1`, id)
-	err := row.Scan(&o.ID, &o.Address, &o.Price)
+	row := db.QueryRowContext(ctx, `SELECT id, address, price, status, created_at FROM orders WHERE id = $1`, id)
+	err := row.Scan(&o.ID, &o.Address, &o.Price, &o.Status, &o.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Order{}, ErrOrderNotFound
@@ -285,8 +287,8 @@ func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 }
 
 func createOrder(ctx context.Context, db *sql.DB, o Order) (Order, error) {
-	row := db.QueryRowContext(ctx, `INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id`, o.Address, o.Price)
-	err := row.Scan(&o.ID)
+	row := db.QueryRowContext(ctx, `INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id, status, created_at`, o.Address, o.Price)
+	err := row.Scan(&o.ID, &o.Status, &o.CreatedAt)
 	if err != nil {
 		return Order{}, fmt.Errorf("createOrder: %w", err)
 	}
@@ -294,8 +296,8 @@ func createOrder(ctx context.Context, db *sql.DB, o Order) (Order, error) {
 }
 
 func updateOrder(ctx context.Context, db *sql.DB, id int, o Order) (Order, error) {
-	row := db.QueryRowContext(ctx, `UPDATE orders SET address = $1, price = $2 WHERE id = $3 RETURNING id, address, price`, o.Address, o.Price, id)
-	err := row.Scan(&o.ID, &o.Address, &o.Price)
+	row := db.QueryRowContext(ctx, `UPDATE orders SET address = $1, price = $2 WHERE id = $3 RETURNING id, address, price, status, created_at`, o.Address, o.Price, id)
+	err := row.Scan(&o.ID, &o.Address, &o.Price, &o.Status, &o.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Order{}, ErrOrderNotFound
