@@ -26,7 +26,7 @@ type Order struct {
 	Price     int64       `json:"price"`
 	Status    string      `json:"status"`
 	CreatedAt time.Time   `json:"created_at"`
-	Items     []OrderItem `json:"items"`
+	Items     []OrderItem `json:"items,omitempty"`
 }
 
 type OrderItem struct {
@@ -297,6 +297,28 @@ func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 		}
 		return Order{}, fmt.Errorf("getOrderByID scan: %w", err)
 	}
+
+	rows, err := db.QueryContext(ctx, `SELECT id, order_id, name, quantity, price FROM order_items WHERE order_id = $1`, o.ID)
+	if err != nil {
+		return Order{}, fmt.Errorf("getOrderByID query: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]OrderItem, 0)
+	for rows.Next() {
+		var i OrderItem
+		err = rows.Scan(&i.ID, &i.OrderID, &i.Name, &i.Quantity, &i.Price)
+		if err != nil {
+			return Order{}, fmt.Errorf("getOrderByID items scan: %w", err)
+		}
+		items = append(items, i)
+	}
+	if err = rows.Err(); err != nil {
+		return Order{}, fmt.Errorf("getOrderById rows :%w", err)
+	}
+
+	o.Items = items
+
 	return o, nil
 }
 
