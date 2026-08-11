@@ -11,3 +11,5 @@ db-up:
 	docker compose up -d
 db-down:
 	docker compose down
+db-shell:
+	@docker compose exec db psql -U delivery_user -d delivery
