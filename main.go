@@ -52,6 +52,11 @@ func main() {
 	}
 	log.Println("Success connection")
 
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(time.Minute * 5)
+	db.SetConnMaxIdleTime(time.Minute * 2)
+
 	srv := &Server{db: db}
 
 	r := chi.NewRouter()
