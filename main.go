@@ -21,11 +21,20 @@ import (
 var ErrOrderNotFound = errors.New("order not found")
 
 type Order struct {
-	ID        int       `json:"id"`
-	Address   string    `json:"address"`
-	Price     int64     `json:"price"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int         `json:"id"`
+	Address   string      `json:"address"`
+	Price     int64       `json:"price"`
+	Status    string      `json:"status"`
+	CreatedAt time.Time   `json:"created_at"`
+	Items     []OrderItem `json:"items"`
+}
+
+type OrderItem struct {
+	ID       int    `json:"id"`
+	OrderID  int    `json:"order_id"`
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+	Price    int64  `json:"price"`
 }
 
 type Server struct {
@@ -286,17 +295,37 @@ func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Order{}, ErrOrderNotFound
 		}
-		return Order{}, fmt.Errorf("getOrderByID: %w", err)
+		return Order{}, fmt.Errorf("getOrderByID scan: %w", err)
 	}
 	return o, nil
 }
 
 func createOrder(ctx context.Context, db *sql.DB, o Order) (Order, error) {
-	row := db.QueryRowContext(ctx, `INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id, status, created_at`, o.Address, o.Price)
-	err := row.Scan(&o.ID, &o.Status, &o.CreatedAt)
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return Order{}, fmt.Errorf("createOrder: %w", err)
+		return Order{}, fmt.Errorf("createOrder beginTx: %w", err)
 	}
+	defer tx.Rollback()
+
+	row := tx.QueryRowContext(ctx, `INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id, status, created_at`, o.Address, o.Price)
+	err = row.Scan(&o.ID, &o.Status, &o.CreatedAt)
+	if err != nil {
+		return Order{}, fmt.Errorf("createOrder scan: %w", err)
+	}
+
+	for i := range o.Items {
+		row := tx.QueryRowContext(ctx, `INSERT INTO order_items(order_id, name, quantity, price) VALUES ($1, $2, $3, $4) RETURNING id, order_id`, o.ID, o.Items[i].Name, o.Items[i].Quantity, o.Items[i].Price)
+		err = row.Scan(&o.Items[i].ID, &o.Items[i].OrderID)
+		if err != nil {
+			return Order{}, fmt.Errorf("createOrder items scan: %w", err)
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return Order{}, fmt.Errorf("createOrder commit: %w", err)
+	}
+
 	return o, nil
 }
 
@@ -307,7 +336,7 @@ func updateOrder(ctx context.Context, db *sql.DB, id int, o Order) (Order, error
 		if errors.Is(err, sql.ErrNoRows) {
 			return Order{}, ErrOrderNotFound
 		}
-		return Order{}, fmt.Errorf("updateOrder: %w", err)
+		return Order{}, fmt.Errorf("updateOrder scan: %w", err)
 	}
 	return o, nil
 }
