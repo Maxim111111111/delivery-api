@@ -72,6 +72,8 @@ func main() {
 
 	r.Use(LoggingMiddleware)
 	r.Use(RecoverMiddleware)
+	r.Get("/health/liveness", Liveness)
+	r.Get("/health/readiness", srv.Readiness)
 
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware)
@@ -108,6 +110,20 @@ func main() {
 		log.Println("Сервер успешно остановлен")
 	}
 
+}
+
+func (s *Server) Readiness(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	err := s.db.PingContext(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func Liveness(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }
 
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -270,7 +286,7 @@ func getOrders(ctx context.Context, db *sql.DB) ([]Order, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getOrders query: %w", err)
 	}
-	defer func() { _ = db.Close() }()
+	defer func() { _ = rows.Close() }()
 
 	orders := make([]Order, 0)
 	for rows.Next() {
@@ -302,7 +318,7 @@ func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 	if err != nil {
 		return Order{}, fmt.Errorf("getOrderByID query: %w", err)
 	}
-	defer func() { _ = db.Close() }()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]OrderItem, 0)
 	for rows.Next() {
