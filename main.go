@@ -54,7 +54,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	err = db.Ping()
 	if err != nil {
 		log.Fatal(err)
@@ -270,7 +270,7 @@ func getOrders(ctx context.Context, db *sql.DB) ([]Order, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getOrders query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = db.Close() }()
 
 	orders := make([]Order, 0)
 	for rows.Next() {
@@ -302,7 +302,7 @@ func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 	if err != nil {
 		return Order{}, fmt.Errorf("getOrderByID query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = db.Close() }()
 
 	items := make([]OrderItem, 0)
 	for rows.Next() {
@@ -327,7 +327,7 @@ func createOrder(ctx context.Context, db *sql.DB, o Order) (Order, error) {
 	if err != nil {
 		return Order{}, fmt.Errorf("createOrder beginTx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	row := tx.QueryRowContext(ctx, `INSERT INTO orders (address, price) VALUES ($1, $2) RETURNING id, status, created_at`, o.Address, o.Price)
 	err = row.Scan(&o.ID, &o.Status, &o.CreatedAt)
