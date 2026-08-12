@@ -13,3 +13,10 @@ db-down:
 	docker compose down
 db-shell:
 	@docker compose exec db psql -U delivery_user -d delivery
+fmt:
+	go fmt ./...
+lint:
+	golangci-lint run
+vet:
+	go vet ./...
+check: fmt vet lint
