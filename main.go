@@ -158,10 +158,18 @@ func RecoverMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *Server) GetOrders(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*3)
+	defer cancel()
 
 	orders, err := getOrders(ctx, s.db)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			return
+		}
 		log.Printf("Error: %v", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -175,7 +183,8 @@ func (s *Server) GetOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*3)
+	defer cancel()
 
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
@@ -186,6 +195,13 @@ func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 
 	order, err := getOrderByID(ctx, s.db, intID)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			return
+		}
 		if errors.Is(err, ErrOrderNotFound) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
@@ -203,7 +219,8 @@ func (s *Server) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*3)
+	defer cancel()
 
 	var o Order
 	err := json.NewDecoder(r.Body).Decode(&o)
@@ -213,6 +230,13 @@ func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	order, err := createOrder(ctx, s.db, o)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			return
+		}
 		log.Printf("CreateOrder handler: %v", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -227,7 +251,9 @@ func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UpdateOrder(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*3)
+	defer cancel()
+
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
 	if err != nil {
@@ -244,6 +270,13 @@ func (s *Server) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 
 	order, err := updateOrder(ctx, s.db, intID, o)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			return
+		}
 		if errors.Is(err, ErrOrderNotFound) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
@@ -261,7 +294,8 @@ func (s *Server) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteOrder(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*3)
+	defer cancel()
 
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
@@ -272,6 +306,13 @@ func (s *Server) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 
 	err = deleteOrder(ctx, s.db, intID)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			return
+		}
 		if errors.Is(err, ErrOrderNotFound) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
