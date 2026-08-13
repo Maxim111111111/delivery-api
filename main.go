@@ -59,7 +59,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Success connection")
+	log.Println("Success db connection")
 
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
@@ -92,27 +92,32 @@ func main() {
 		IdleTimeout:  time.Second * 60,
 	}
 
+	errCh := make(chan error, 1)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("ListenAndServe: ", err)
+			errCh <- err
 		}
 	}()
-	log.Println("Server has running")
+	log.Println("Starting server on :8080")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	log.Println("Останавливаю сервер...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
+	select {
+	case err := <-errCh:
+		log.Println(err)
+	case <-quit:
+		log.Println("Останавливаю сервер...")
 
-	if err := server.Shutdown(ctx); err != nil {
-		log.Println("Сервер перестал ждать и был остановлен")
-	} else {
-		log.Println("Сервер успешно остановлен")
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			log.Println("Сервер перестал ждать и был остановлен")
+		} else {
+			log.Println("Сервер успешно остановлен")
+		}
 	}
-
 }
 
 func (s *Server) Readiness(w http.ResponseWriter, r *http.Request) {
@@ -374,7 +379,7 @@ func getOrderByID(ctx context.Context, db *sql.DB, id int) (Order, error) {
 		items = append(items, i)
 	}
 	if err = rows.Err(); err != nil {
-		return Order{}, fmt.Errorf("getOrderById rows :%w", err)
+		return Order{}, fmt.Errorf("getOrderByID rows:%w", err)
 	}
 
 	o.Items = items
