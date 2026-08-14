@@ -1,4 +1,4 @@
-module learning
+module delivery-api
 
 go 1.25.0
 
