@@ -3,12 +3,11 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"delivery-api/internal/apperror"
 	"delivery-api/internal/model"
 	"errors"
 	"fmt"
 )
-
-var ErrOrderNotFound = errors.New("order not found")
 
 type OrderRepository struct {
 	db *sql.DB
@@ -46,7 +45,7 @@ func (r *OrderRepository) GetOrderByID(ctx context.Context, id int) (model.Order
 	err := row.Scan(&o.ID, &o.Address, &o.Price, &o.Status, &o.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.Order{}, ErrOrderNotFound
+			return model.Order{}, apperror.ErrOrderNotFound
 		}
 		return model.Order{}, fmt.Errorf("GetOrderByID scan: %w", err)
 	}
@@ -109,7 +108,7 @@ func (r *OrderRepository) UpdateOrder(ctx context.Context, id int, o model.Order
 	err := row.Scan(&o.ID, &o.Address, &o.Price, &o.Status, &o.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.Order{}, ErrOrderNotFound
+			return model.Order{}, apperror.ErrOrderNotFound
 		}
 		return model.Order{}, fmt.Errorf("UpdateOrder scan: %w", err)
 	}
@@ -126,7 +125,7 @@ func (r *OrderRepository) DeleteOrder(ctx context.Context, id int) error {
 		return fmt.Errorf("DeleteOrder rowsAffected: %w", err)
 	}
 	if rows == 0 {
-		return ErrOrderNotFound
+		return apperror.ErrOrderNotFound
 	}
 	return nil
 }

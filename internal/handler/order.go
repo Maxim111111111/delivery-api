@@ -2,8 +2,8 @@ package handler
 
 import (
 	"context"
+	"delivery-api/internal/apperror"
 	"delivery-api/internal/model"
-	"delivery-api/internal/repository"
 	"delivery-api/internal/service"
 	"encoding/json"
 	"errors"
@@ -32,19 +32,15 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
 			return
 		}
-		log.Printf("Error: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		log.Printf("GetOrders handler: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(orders)
-	if err != nil {
-		log.Printf("Error encoding orders: %v", err)
-	}
+	writeJSON(w, http.StatusOK, orders)
 }
 
 func (h *OrderHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +50,7 @@ func (h *OrderHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid order id")
 		return
 	}
 
@@ -64,23 +60,19 @@ func (h *OrderHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
 			return
 		}
-		if errors.Is(err, repository.ErrOrderNotFound) {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		if errors.Is(err, apperror.ErrOrderNotFound) {
+			writeError(w, http.StatusNotFound, "order not found")
 			return
 		}
 		log.Printf("GetOrderByID handler: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(order)
-	if err != nil {
-		log.Printf("Error encoding orders: %v", err)
-	}
+	writeJSON(w, http.StatusOK, order)
 }
 
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +82,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	var o model.Order
 	err := json.NewDecoder(r.Body).Decode(&o)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	order, err := h.service.CreateOrder(ctx, o)
@@ -99,20 +91,15 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
 			return
 		}
 		log.Printf("CreateOrder handler: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	err = json.NewEncoder(w).Encode(order)
-	if err != nil {
-		log.Printf("Error encoding orders: %v", err)
-	}
+	writeJSON(w, http.StatusCreated, order)
 }
 
 func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
@@ -122,14 +109,14 @@ func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid order id")
 		return
 	}
 
 	var o model.Order
 	err = json.NewDecoder(r.Body).Decode(&o)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -139,23 +126,19 @@ func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
 			return
 		}
-		if errors.Is(err, repository.ErrOrderNotFound) {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		if errors.Is(err, apperror.ErrOrderNotFound) {
+			writeError(w, http.StatusNotFound, "order not found")
 			return
 		}
 		log.Printf("UpdateOrder handler: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(order)
-	if err != nil {
-		log.Printf("Error encoding orders: %v", err)
-	}
+	writeJSON(w, http.StatusOK, order)
 }
 
 func (h *OrderHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +148,7 @@ func (h *OrderHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	intID, err := strconv.Atoi(id)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid order id")
 		return
 	}
 
@@ -175,15 +158,15 @@ func (h *OrderHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
 			return
 		}
-		if errors.Is(err, repository.ErrOrderNotFound) {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		if errors.Is(err, apperror.ErrOrderNotFound) {
+			writeError(w, http.StatusNotFound, "order not found")
 			return
 		}
 		log.Printf("DeleteOrder handler: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
