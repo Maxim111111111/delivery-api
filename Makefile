@@ -2,7 +2,7 @@ include .env
 export
 
 run:
-	go run main.go
+	go run ./cmd/server/
 migrate-up:
 	@goose -dir migrations postgres "$(DATABASE_URL)" up
 migrate-down:
