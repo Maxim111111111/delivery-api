@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"delivery-api/internal/handler"
+	"delivery-api/internal/middleware"
 	"delivery-api/internal/repository"
 	"delivery-api/internal/service"
 	"errors"
@@ -50,13 +51,13 @@ func main() {
 
 	r := chi.NewRouter()
 
-	r.Use(LoggingMiddleware)
-	r.Use(RecoverMiddleware)
+	r.Use(middleware.Logging)
+	r.Use(middleware.Recover)
 	r.Get("/health/liveness", healthHandler.Liveness)
 	r.Get("/health/readiness", healthHandler.Readiness)
 
 	r.Group(func(r chi.Router) {
-		r.Use(AuthMiddleware)
+		r.Use(middleware.Auth)
 		r.Get("/orders", orderHandler.GetOrders)
 		r.Get("/orders/{id}", orderHandler.GetOrderByID)
 		r.Delete("/orders/{id}", orderHandler.DeleteOrder)
@@ -98,32 +99,4 @@ func main() {
 			log.Println("Сервер успешно остановлен")
 		}
 	}
-}
-
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("проверка прав для %s", r.URL.Path)
-		// тут была бы проверка токена; пока пропускаем всех хах
-		next.ServeHTTP(w, r)
-	})
-}
-
-func LoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
-	})
-}
-
-func RecoverMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if rec := recover(); rec != nil {
-				log.Printf("паника: %v", rec)
-				http.Error(w, "internal error", http.StatusInternalServerError)
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
 }
