@@ -4,11 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"delivery-api/internal/handler"
-	"delivery-api/internal/middleware"
 	"delivery-api/internal/repository"
 	"delivery-api/internal/service"
 	"errors"
-	"github.com/go-chi/chi/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 	"log"
@@ -49,25 +47,11 @@ func main() {
 	orderHandler := handler.NewOrderHandler(orderService)
 	healthHandler := handler.NewHealthHandler(db)
 
-	r := chi.NewRouter()
-
-	r.Use(middleware.Logging)
-	r.Use(middleware.Recover)
-	r.Get("/health/liveness", healthHandler.Liveness)
-	r.Get("/health/readiness", healthHandler.Readiness)
-
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth)
-		r.Get("/orders", orderHandler.GetOrders)
-		r.Get("/orders/{id}", orderHandler.GetOrderByID)
-		r.Delete("/orders/{id}", orderHandler.DeleteOrder)
-		r.Post("/orders", orderHandler.CreateOrder)
-		r.Put("/orders/{id}", orderHandler.UpdateOrder)
-	})
+	router := handler.NewRouter(orderHandler, healthHandler)
 
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      r,
+		Handler:      router,
 		ReadTimeout:  time.Second * 15,
 		WriteTimeout: time.Second * 15,
 		IdleTimeout:  time.Second * 60,
