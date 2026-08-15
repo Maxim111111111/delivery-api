@@ -2,13 +2,10 @@ package handler
 
 import (
 	"context"
-	"delivery-api/internal/apperror"
 	"delivery-api/internal/model"
 	"delivery-api/internal/service"
 	"encoding/json"
-	"errors"
 	"github.com/go-chi/chi/v5"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,15 +25,7 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 
 	orders, err := h.service.GetOrders(ctx)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
-			return
-		}
-		log.Printf("GetOrders handler: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal server error")
+		handleError(w, err)
 		return
 	}
 
@@ -56,19 +45,7 @@ func (h *OrderHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 
 	order, err := h.service.GetOrderByID(ctx, intID)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
-			return
-		}
-		if errors.Is(err, apperror.ErrOrderNotFound) {
-			writeError(w, http.StatusNotFound, "order not found")
-			return
-		}
-		log.Printf("GetOrderByID handler: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal server error")
+		handleError(w, err)
 		return
 	}
 
@@ -87,15 +64,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	order, err := h.service.CreateOrder(ctx, o)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
-			return
-		}
-		log.Printf("CreateOrder handler: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal server error")
+		handleError(w, err)
 		return
 	}
 
@@ -122,19 +91,7 @@ func (h *OrderHandler) UpdateOrder(w http.ResponseWriter, r *http.Request) {
 
 	order, err := h.service.UpdateOrder(ctx, intID, o)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
-			return
-		}
-		if errors.Is(err, apperror.ErrOrderNotFound) {
-			writeError(w, http.StatusNotFound, "order not found")
-			return
-		}
-		log.Printf("UpdateOrder handler: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal server error")
+		handleError(w, err)
 		return
 	}
 
@@ -154,19 +111,7 @@ func (h *OrderHandler) DeleteOrder(w http.ResponseWriter, r *http.Request) {
 
 	err = h.service.DeleteOrder(ctx, intID)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, context.DeadlineExceeded) {
-			writeError(w, http.StatusServiceUnavailable, "service temporarily unavailable, try again later")
-			return
-		}
-		if errors.Is(err, apperror.ErrOrderNotFound) {
-			writeError(w, http.StatusNotFound, "order not found")
-			return
-		}
-		log.Printf("DeleteOrder handler: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal server error")
+		handleError(w, err)
 		return
 	}
 
