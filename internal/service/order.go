@@ -3,14 +3,21 @@ package service
 import (
 	"context"
 	"delivery-api/internal/model"
-	"delivery-api/internal/repository"
 )
 
-type OrderService struct {
-	repo *repository.OrderRepository
+type OrderRepository interface {
+	GetOrders(ctx context.Context) ([]model.Order, error)
+	GetOrderByID(ctx context.Context, id int) (model.Order, error)
+	CreateOrder(ctx context.Context, o model.Order) (model.Order, error)
+	UpdateOrder(ctx context.Context, id int, o model.Order) (model.Order, error)
+	DeleteOrder(ctx context.Context, id int) error
 }
 
-func NewOrderService(repo *repository.OrderRepository) *OrderService {
+type OrderService struct {
+	repo OrderRepository
+}
+
+func NewOrderService(repo OrderRepository) *OrderService {
 	return &OrderService{repo: repo}
 }
 
