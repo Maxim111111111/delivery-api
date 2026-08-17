@@ -20,6 +20,12 @@ func handleError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "order not found")
 		return
 	}
+
+	var valErr *apperror.ValidationError
+	if errors.As(err, &valErr) {
+		writeJSON(w, http.StatusBadRequest, validationErrorResponse{Messages: valErr.Messages})
+		return
+	}
 	log.Printf("Unexpected error: %v", err)
 	writeError(w, http.StatusInternalServerError, "internal server error")
 }
